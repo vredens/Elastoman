@@ -1,0 +1,194 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use CLI::Display qw/print_ok print_hl print_error print_die/;
+use YAML::Tiny;
+use Data::Dumper;
+use Cwd qw/abs_path getcwd/;
+use File::Path qw/mkpath/;
+
+# set max open files hard limit
+
+sub print_usage {
+	print_error('Invalid syntax.', "\n\n");
+	print_hl ("Here's how to run Elastoman\n");
+	print_hl ("\t$0 deploy <instance>  "); print_ok ("deploy an elasticsearch instance\n");
+	print_hl ("\t$0 list               "); print_ok ("List available instances and their status\n");
+	print_hl ("\t$0 start <instance>   "); print_ok ("Start an elasticsearch instance\n");
+	print_hl ("\t$0 stop <instance>    "); print_ok ("Stop an elasticsearch instance\n"); 
+	exit 1;
+}
+
+my $CONFIG_FILE = 'instances.yml'; # TODO: replace with the non-.dist file
+
+die "No configuration file" unless -f $CONFIG_FILE;
+my $cfg = YAML::Tiny->read($CONFIG_FILE); 
+
+my $op = shift;
+
+print_usage() unless defined $op;
+
+if ($op eq 'deploy') {
+	prepare_elasticsearch();
+	my $instance = shift;
+	print_die ('You need to provide an instance name') unless defined $instance;
+	print_die ('No instance found for that name ['.$instance.']') unless defined $cfg->[0]->{'instances'}->{$instance};
+	$instance = $cfg->[0]->{'instances'}->{$instance};
+	prepare_instance($instance);
+} elsif ($op eq 'start') {
+	my $instance = shift;
+	print_die ('You need to provide an instance name') unless defined $instance;
+	print_die ('No instance found for that name ['.$instance.']') unless defined $cfg->[0]->{'instances'}->{$instance};
+	$instance = $cfg->[0]->{'instances'}->{$instance};
+	start($instance);
+	$cfg->write($CONFIG_FILE);
+} elsif ($op eq 'stop') {
+	my $instance = shift;
+	print_die ('You need to provide an instance name') unless defined $instance;
+	print_die ('No instance found for that name ['.$instance.']') unless defined $cfg->[0]->{'instances'}->{$instance};
+	$instance = $cfg->[0]->{'instances'}->{$instance};
+	stop($instance);
+} elsif ($op eq 'list') {
+	print_hl ("list of configured elasticsearch server instances and their status\n");
+	
+	foreach (keys %{$cfg->[0]->{instances}}) {
+		my $status = 'down';
+		if (defined $cfg->[0]->{'instances'}->{$_}->{'pid-file'}) {
+			my $pid = get_pid_from_file($cfg->[0]->{'instances'}->{$_}->{'pid-file'});
+			$status = 'up' if ($pid and kill 0, $pid);
+		}
+		print_ok (sprintf('%15s', $_), '  '); print ($status, "\n");
+	}
+	
+} elsif ($op eq 'new') {
+	
+}
+
+sub get_pid_from_file {
+	my $f = shift;
+	
+	return 0 unless -r $f;
+	
+	open (my $pidfh, '<', $f);
+	my $pid = <$pidfh>;
+	close ($pidfh);
+	
+	return $pid;
+}
+
+sub check_elasticsearch {
+	1;
+}
+
+sub start {
+	my $instance = shift;
+
+	my $ld = abs_path($instance->{'location'});
+
+	if (defined $instance->{'pid-file'}) {
+		my $pid = get_pid_from_file($instance->{'pid-file'});
+		if ($pid) {
+			print_die ("Instance is already running with PID $pid\n") if (kill 0, $pid);
+		}
+	} else {
+		$instance->{'pid-file'} = "$ld/pidfile";
+	}
+	
+	my $sl = $cfg->[0]->{'server'}->{'location'};
+	my $cwd = getcwd;
+	chdir $sl . '/elasticsearch';
+	`./bin/elasticsearch -p $instance->{'pid-file'} -Des.path.conf=$ld/config`;
+	chdir $cwd;
+}
+
+sub stop {
+	my $instance = shift;
+
+	die "Could not find the PID file. You probably need to kill this instance manually." unless defined $instance->{'pid-file'};
+
+	my $pid = get_pid_from_file($instance->{'pid-file'});
+	
+	kill 'TERM', $pid;
+	my $i = 0;
+	do {
+		sleep 1;
+		$i++;
+	} while (kill 0, $pid and $i < 30);
+
+	die "Could not terminated the process with PID $pid" if (kill 0, $pid);
+}
+
+sub prepare_instance {
+	my $instance = shift;
+	
+	print Dumper($instance);
+	
+	print_ok ('making dir ', $instance->{'location'}, "\n");
+	mkpath ($instance->{'location'}) or die 'could not make path' unless -d $instance->{'location'};
+	
+	# abs path or not?
+	my $lf = abs_path($instance->{'location'});
+	
+	# create the config folder
+	my %folders;
+	
+	foreach (qw/config data logs/) {
+		$folders{$_} = $lf . '/' . $_;
+		print_ok ('making dir ', $folders{$_}, "\n");
+		mkdir $folders{$_} or die 'cant make dir' unless defined -d $folders{$_};
+	}
+	
+	# copy and update the config
+	open (my $ifh, '<', $cfg->[0]->{'server'}->{'location'} . '/elasticsearch/config/elasticsearch.yml') or die 'could not open original config file';
+	open (my $ofh, '>', $folders{config} . '/elasticsearch.yml') or die 'could not open destination config file';
+	while (<$ifh>) {
+		print $ofh $_;
+		if (/##### Node ####/) {
+			print $ofh 'node.name: ', $instance->{'name'}, "\n";
+			print $ofh 'node.master: ', $instance->{'master'}, "\n";
+			print $ofh 'node.data: ', $instance->{'data'}, "\n";
+		} elsif (/### Paths ###/) {
+			print $ofh 'path.conf: ', $folders{config}, "\n";
+			print $ofh 'path.data: ', $folders{data}, "\n";
+			print $ofh 'path.logs: ', $folders{logs}, "\n";
+		}
+	}
+	close ($ifh);
+	close ($ofh);
+	`cp $cfg->[0]->{'server'}->{'location'}/elasticsearch/config/logging.yml $folders{config}/logging.yml`;
+}
+
+sub prepare_elasticsearch {
+	my $sl = $cfg->[0]->{'server'}->{'location'};
+	my $es_file = 'elasticsearch-' . $cfg->[0]->{'elasticsearch'}->{'version'} . '.tar.gz';
+	my $es_folder = 'elasticsearch-' . $cfg->[0]->{'elasticsearch'}->{'version'};
+	my $es_dluri = $cfg->[0]->{'elasticsearch'}->{'base-uri'} . $es_file;
+	
+	my $bwd = getcwd;
+	
+	mkdir $sl unless -d $sl;
+	chdir $sl;
+	
+	print_ok ('changed dir to ', $sl, "\n");
+	
+	if (! -d $es_folder) {
+		print_ok ('downloading elasticsearch', "\n");
+		`wget -q $es_dluri`;
+		die "Error fetching $es_file from $es_dluri" unless -f $es_file;
+		print_ok ('extracting elasticsearch', "\n");
+		`tar -xzf $es_file`;
+		die "Could not extract $es_file" unless -d $es_file;
+	}
+
+	if (! -d 'elasticsearch') {
+		`ln -s $es_folder elasticsearch`;
+		die "Could not create symlink to $es_folder" unless -d 'elasticsearch';
+	}
+	
+	chdir $bwd;
+}
+
+__END__
+

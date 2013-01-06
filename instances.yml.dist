@@ -1,0 +1,23 @@
+---
+elasticsearch:
+  base-uri: http://download.elasticsearch.org/elasticsearch/elasticsearch/
+  version: 0.20.2
+instances:
+  master:
+    data: 'true'
+    location: './instances/master'
+    master: 'true'
+    name: esmaster
+  standalone:
+    data: 'true'
+    location: './instances/basic'
+    master: 'true'
+    name: development
+    pid-file: '/home/bernardo/workspace/eerie-soft/elastoman/instances/basic/pidfile'
+  worker:
+    data: 'true'
+    location: './instances/worker'
+    master: 'false'
+    name: esworker
+server:
+  location: './elasticsearch'
