@@ -8,6 +8,7 @@ use YAML::Tiny;
 use Data::Dumper;
 use Cwd qw/abs_path getcwd/;
 use File::Path qw/mkpath/;
+use File::Basename;
 
 # set max open files hard limit
 
@@ -21,7 +22,7 @@ sub print_usage {
 	exit 1;
 }
 
-my $CONFIG_FILE = 'instances.yml'; # TODO: replace with the non-.dist file
+my $CONFIG_FILE = dirname($0) . '/instances.yml'; # TODO: replace with the non-.dist file
 
 die "No configuration file" unless -f $CONFIG_FILE;
 my $cfg = YAML::Tiny->read($CONFIG_FILE); 
