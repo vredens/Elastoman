@@ -1,0 +1,37 @@
+{
+   "mappings-folder" : "mappings/",
+	"contacts": {
+		"use_env": 1,
+		"index-message": "not supported",
+		"fetch-message": "not supported",
+		"mapping": "contacts.json",
+		"base-name": "contacts"
+   },
+	"europeans" : {
+		"use_env" : 1,
+		"index" : "/path/to/myscript --index-version $version$ --host $host$ --port $port$ --index $index$",
+		"mapping" : "europeans.json",
+		"version-check-alias" : "europeans",
+		"version" : 2,
+		"aliases" : [
+			{
+				"use_env" : 1,
+				"name" : "europeans"
+			},
+			{
+				"use_env" : 1,
+				"filter" : {
+					"range" : {
+						"age" : { "ge": 18 }
+					}
+				},
+				"name" : "people"
+			}
+		],
+		"base-name" : "europeans"
+	},
+   "env" : "dev",
+   "debug" : 0,
+   "port" : "9200",
+   "host" : "leao"
+}
