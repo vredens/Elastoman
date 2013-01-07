@@ -18,14 +18,14 @@ sub print_usage {
 	print_hl ("\t$0 deploy <instance>  "); print_ok ("deploy an elasticsearch instance\n");
 	print_hl ("\t$0 list               "); print_ok ("List available instances and their status\n");
 	print_hl ("\t$0 start <instance>   "); print_ok ("Start an elasticsearch instance\n");
-	print_hl ("\t$0 stop <instance>    "); print_ok ("Stop an elasticsearch instance\n"); 
+	print_hl ("\t$0 stop <instance>    "); print_ok ("Stop an elasticsearch instance\n");
 	exit 1;
 }
 
 my $CONFIG_FILE = dirname($0) . '/instances.yml'; # TODO: replace with the non-.dist file
 
 die "No configuration file" unless -f $CONFIG_FILE;
-my $cfg = YAML::Tiny->read($CONFIG_FILE); 
+my $cfg = YAML::Tiny->read($CONFIG_FILE);
 
 my $op = shift;
 
@@ -53,7 +53,7 @@ if ($op eq 'deploy') {
 	stop($instance);
 } elsif ($op eq 'list') {
 	print_hl ("list of configured elasticsearch server instances and their status\n");
-	
+
 	foreach (keys %{$cfg->[0]->{instances}}) {
 		my $status = 'down';
 		if (defined $cfg->[0]->{'instances'}->{$_}->{'pid-file'}) {
@@ -62,20 +62,20 @@ if ($op eq 'deploy') {
 		}
 		print_ok (sprintf('%15s', $_), '  '); print ($status, "\n");
 	}
-	
+
 } elsif ($op eq 'new') {
-	
+
 }
 
 sub get_pid_from_file {
 	my $f = shift;
-	
+
 	return 0 unless -r $f;
-	
+
 	open (my $pidfh, '<', $f);
 	my $pid = <$pidfh>;
 	close ($pidfh);
-	
+
 	return $pid;
 }
 
@@ -96,12 +96,12 @@ sub start {
 	} else {
 		$instance->{'pid-file'} = "$ld/pidfile";
 	}
-	
+
 	my $prefix = '';
 	if (defined $instance->{'memory'}) {
 		$prefix = "ES_HEAP_SIZE=$instance->{'memory'}";
 	}
-	
+
 	my $sl = $cfg->[0]->{'server'}->{'location'};
 	my $cwd = getcwd;
 	chdir $sl . '/elasticsearch';
@@ -116,7 +116,7 @@ sub stop {
 	die "Could not find the PID file. You probably need to kill this instance manually." unless defined $instance->{'pid-file'};
 
 	my $pid = get_pid_from_file($instance->{'pid-file'});
-	
+
 	kill 'TERM', $pid;
 	my $i = 0;
 	do {
@@ -129,24 +129,22 @@ sub stop {
 
 sub prepare_instance {
 	my $instance = shift;
-	
-	print Dumper($instance);
-	
+
 	print_ok ('making dir ', $instance->{'location'}, "\n");
 	mkpath ($instance->{'location'}) or die 'could not make path' unless -d $instance->{'location'};
-	
+
 	# abs path or not?
 	my $lf = abs_path($instance->{'location'});
-	
+
 	# create the config folder
 	my %folders;
-	
+
 	foreach (qw/config data logs/) {
 		$folders{$_} = $lf . '/' . $_;
 		print_ok ('making dir ', $folders{$_}, "\n");
 		mkdir $folders{$_} or die 'cant make dir' unless defined -d $folders{$_};
 	}
-	
+
 	# copy and update the config
 	open (my $ifh, '<', $cfg->[0]->{'server'}->{'location'} . '/elasticsearch/config/elasticsearch.yml') or die 'could not open original config file';
 	open (my $ofh, '>', $folders{config} . '/elasticsearch.yml') or die 'could not open destination config file';
@@ -177,28 +175,28 @@ sub prepare_elasticsearch {
 	my $es_file = 'elasticsearch-' . $cfg->[0]->{'elasticsearch'}->{'version'} . '.tar.gz';
 	my $es_folder = 'elasticsearch-' . $cfg->[0]->{'elasticsearch'}->{'version'};
 	my $es_dluri = $cfg->[0]->{'elasticsearch'}->{'base-uri'} . $es_file;
-	
+
 	my $bwd = getcwd;
-	
+
 	mkdir $sl unless -d $sl;
 	chdir $sl;
-	
+
 	print_ok ('changed dir to ', $sl, "\n");
-	
+
 	if (! -d $es_folder) {
 		print_ok ('downloading elasticsearch', "\n");
 		`wget -q $es_dluri`;
 		die "Error fetching $es_file from $es_dluri" unless -f $es_file;
 		print_ok ('extracting elasticsearch', "\n");
 		`tar -xzf $es_file`;
-		die "Could not extract $es_file" unless -d $es_file;
+		die "Could not extract $es_file" unless -d $es_folder;
 	}
 
 	if (! -d 'elasticsearch') {
 		`ln -s $es_folder elasticsearch`;
 		die "Could not create symlink to $es_folder" unless -d 'elasticsearch';
 	}
-	
+
 	chdir $bwd;
 }
 

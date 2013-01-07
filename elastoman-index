@@ -13,7 +13,7 @@ my $CONFIG_FILE = dirname($0) . '/indexes.yml';
 sub run_elastic_request {
 	my $cmd = shift;
 	my $r = `$cmd`;
-	
+
 	if ($r !~ /^{/ or $r =~ /^{"error/) {
 		print_error("\t", 'ElasticSearch error response: ', $r, "\n");
 		return 0;
@@ -43,10 +43,10 @@ fetch all indexeses of a given alias
 sub fetch_alias_indexes($$$) {
 	my $uri = 'http://' . (shift) . ':' . (shift);
 	my $alias = shift;
-	
+
 	my $r = `curl -s -XGET $uri/_aliases`;
 	my $indexes = decode_json($r);
-	
+
 	my @r;
 	foreach my $i (keys %{$indexes}) {
 		foreach my $a (keys %{$indexes->{$i}->{aliases}}) {
@@ -55,33 +55,33 @@ sub fetch_alias_indexes($$$) {
 			}
 		}
 	}
-	
+
 	return @r;
 }
 
 sub find_index_version {
 	my $uri = shift;
 	my $tpl = shift;
-	
+
 	my $r = `curl -s -XGET $uri`;
 	my $indexes = decode_json($r);
-	
+
 	foreach (keys %{$indexes}) {
 		if (/$tpl/) {
 			return $1;
 		}
 	}
-	
+
 	return undef;
 }
 
 sub get_index_name_and_template($$) {
 	my $_cfg = shift;
 	my $_env = shift;
-	
+
 	my $in = $_cfg->{'base-name'};
 	my $idx_template;
-	
+
 	if ($_cfg->{'use_env'}) {
 		if (defined $_cfg->{'version'}) {
 			$idx_template = qr/^${in}_v(\d+)_(\w+)$/;
@@ -98,27 +98,27 @@ sub get_index_name_and_template($$) {
 			$idx_template = qr/^${in}$/;
 		}
 	}
-	
+
 	return ($in, $idx_template);
 }
 
 sub check_index_exists {
 	my $_cfg = shift;
 	my $_in = shift;
-	
+
 	my $uri = get_es_uri($_cfg, $_in, '_aliases');
-	
+
 	my $r = `curl -s -XGET $uri`;
-	
+
 	return $r ne '{}';
 }
 
 sub get_es_uri {
 	my $cfg = shift;
-	
+
 	my $uri = 'http://' . $cfg->{'host'} . ':' . $cfg->{'port'} . '/';
 	$uri .= join '/', @_ if (@_);
-	
+
 	return $uri;
 }
 
@@ -140,7 +140,8 @@ if (! defined $module or !@ARGV) {
 	print_ok("\t", 'fetch: '); print 'fetches the data to index. not all indices require this step but it is safe to run it even for those cases.', "\n";
 	print_ok("\t", 'index: '); print 'populates the index.', "\n";
 	print_ok("\t", 'alias: '); print 'fixes all aliases (removes and adds).', "\n";
-	
+	print_ok("\t", 'replicas: '); print 'sets the number of replicas as per what is configured (this ignores/overrides what is defined in the mappings file).', "\n";
+
 	print_hl('Modules', "\n");
 	foreach my $m (keys %{$cfg}) {
 		unless (grep /^$m$/, qw/debug host port env mappings-folder/) {
@@ -153,18 +154,35 @@ if (! defined $module or !@ARGV) {
 while (@ARGV) {
 	my $op = shift;
 
-	if ($op eq 'alias') {
+	if ($op eq 'replicas') {
+		unless (defined $cfg->{$module}->{'replicas'}) {
+			print_die('No field "replicas" found in the configuration of the index.', "\n");
+			next;
+		}
+
+		unless ($cfg->{$module}->{'replicas'} =~ /^\d+$/ and $cfg->{$module}->{'replicas'} > 0) {
+			print_die('Replicas must be an integer higher than zero.', "\n");
+			next;
+		}
+
+		my ($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
+		my $cmd = 'curl -s -XPOST ' . get_es_uri($cfg, $in, '_settings') . ' -d \'' . encode_json({ 'index' => { 'number_of_replicas' => $cfg->{$module}->{'replicas'} } }) . '\'';
+		print_ok('Running: ', $cmd, "\n");
+		continue_or_abort();
+		run_elastic_request($cmd) unless $cfg->{debug};
+
+	} elsif ($op eq 'alias') {
 		unless (defined $cfg->{$module}->{'aliases'}) {
 			print_error('you cannot create aliases for indexes which don\'t have any.', "\n");
 			next;
 		}
-		
+
 		my ($in, $idx_template) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
-		
+
 		print_ok ('fixing aliases for index: [', $in, "]\n");
-		
+
 		my @actions;
-		
+
 		foreach (@{$cfg->{$module}->{'aliases'}}) {
 			my $an = $_->{name};
 			$an .= '_' . $cfg->{'env'} if ($_->{use_env});
@@ -182,7 +200,7 @@ while (@ARGV) {
 					}
 				}
 			}
-			
+
 			unless ($skip_add) {
 				if (defined $_->{'filter'}) {
 					push @actions, { 'add' => {'index' => $in, 'alias' => $an, 'filter' => $_->{'filter'}}};
@@ -197,9 +215,9 @@ while (@ARGV) {
 		print_ok('Running: ', $cmd, "\n");
 		continue_or_abort();
 		run_elastic_request($cmd) unless $cfg->{debug};
-		
+
 	} elsif ($op eq 'fetch') {
-		
+
 		my ($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
 		if (defined $cfg->{$module}->{'fetch'}) {
 			my $cmd = $cfg->{$module}->{'fetch'};
@@ -212,9 +230,9 @@ while (@ARGV) {
 		} elsif (defined $cfg->{$module}->{'fetch-message'}) {
 			print_hl ("\t", $cfg->{$module}->{'fetch-message'}, "\n");
 		}
-		
+
 	} elsif ($op eq 'index') {
-		
+
 		my ($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
 		if (defined $cfg->{$module}->{'index'}) {
 			my $cmd = $cfg->{$module}->{'index'};
@@ -228,9 +246,9 @@ while (@ARGV) {
 		} elsif (defined $cfg->{$module}->{'index-message'}) {
 			print_hl ("\t", $cfg->{$module}->{'index-message'}, "\n");
 		}
-		
+
 	} elsif ($op eq 'install') {
-		
+
 		my ($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
 		my $cmd;
 		if (check_index_exists($cfg, $in)) {
@@ -243,15 +261,15 @@ while (@ARGV) {
 		print_ok ("running: ", $cmd, "\n");
 		continue_or_abort();
 		run_elastic_request($cmd) unless $cfg->{debug};
-		
+
 	} elsif ($op eq 'update') {
 		unless (defined $cfg->{$module}->{'version'}) {
 			print_error('you cannot update indexes which don\'t support versioning. please just use install', "\n");
 			next;
 		}
-		
+
 		my ($in, $tpl) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
-		
+
 		my $iv;
 		foreach (@{$cfg->{$module}->{'aliases'}}) {
 			if ($_->{'name'} eq $cfg->{$module}->{'version-check-alias'}) {
@@ -261,20 +279,20 @@ while (@ARGV) {
 				last;
 			}
 		}
-		
+
 		unless (defined $iv) {
 			print 'error: could not find a proper version for index ', $in, ' using alias ', $cfg->{$module}->{'version-check-alias'}, "\n";
 			exit 1;
 		}
-		
+
 		$cfg->{$module}->{'version'} = $iv + 1;
 		($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
-		
+
 		my $cmd = 'curl -s -XPOST ' . get_es_uri($cfg, $in) . ' --data-binary @' . $cfg->{'mappings-folder'} . $cfg->{$module}->{'mapping'};
 		print_ok ("running: ", $cmd, "\n");
 		continue_or_abort();
 		run_elastic_request($cmd) unless $cfg->{debug};
-		
+
 		print_ok ("saving the new configuration\n");
 		continue_or_abort();
 		my $json_text = JSON->new->utf8(1)->pretty(1)->encode($cfg);
