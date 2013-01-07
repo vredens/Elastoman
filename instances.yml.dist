@@ -14,6 +14,11 @@ instances:
     master: 'true'
     name: development
     pid-file: '/home/bernardo/workspace/eerie-soft/elastoman/instances/basic/pidfile'
+    memory: 2G
+    bind-host: 0.0.0.0
+    tcp-port: 9310
+    publish-host: 0.0.0.0
+    http-port: 9210
   worker:
     data: 'true'
     location: './instances/worker'

@@ -96,10 +96,16 @@ sub start {
 		$instance->{'pid-file'} = "$ld/pidfile";
 	}
 	
+	my $prefix = '';
+	if (defined $instance->{'memory'}) {
+		$prefix = "ES_HEAP_SIZE=$instance->{'memory'}";
+	}
+	
 	my $sl = $cfg->[0]->{'server'}->{'location'};
 	my $cwd = getcwd;
 	chdir $sl . '/elasticsearch';
-	`./bin/elasticsearch -p $instance->{'pid-file'} -Des.path.conf=$ld/config`;
+	print_ok ('Running: ', "$prefix ./bin/elasticsearch -p $instance->{'pid-file'} -Des.path.conf=$ld/config", "\n");
+	`$prefix ./bin/elasticsearch -p $instance->{'pid-file'} -Des.path.conf=$ld/config`;
 	chdir $cwd;
 }
 
@@ -153,6 +159,11 @@ sub prepare_instance {
 			print $ofh 'path.conf: ', $folders{config}, "\n";
 			print $ofh 'path.data: ', $folders{data}, "\n";
 			print $ofh 'path.logs: ', $folders{logs}, "\n";
+		} elsif (/##### Network And HTTP #####/) {
+			print $ofh 'network.bind_host: ', $instance->{'bind-host'}, "\n" if defined $instance->{'bind-host'};
+			print $ofh 'network.publish_host: : ', $instance->{'publish-host'}, "\n" if defined $instance->{'publish-host'};
+			print $ofh 'transport.tcp.port: ', $instance->{'tcp-port'}, "\n" if defined $instance->{'tcp-port'};
+			print $ofh 'http.port: ', $instance->{'http-port'}, "\n" if defined $instance->{'http-port'};
 		}
 	}
 	close ($ifh);
