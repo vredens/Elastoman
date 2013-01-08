@@ -1,0 +1,52 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+
+use lib './lib/';
+use Elastoman::Communicator;
+use File::Basename;
+use CLI::Display qw/print_ok print_hl print_error print_die/;
+use JSON;
+use Data::Dumper;
+
+sub print_usage {
+	print_error ("Invalid syntax!\n");
+	print_hl ("Syntax: $0 <instance> <search file> [<search param> ...]\n");
+	exit 1;
+}
+
+sub read_whole_file {
+	my $file = shift;
+
+	open (my $fh, '<', $file) or print_die ("Could not open file $file\n");
+	my $tmp = $/; $/ = undef;
+	my $txt = <$fh>;
+	$/ = $tmp;
+	close ($fh);
+
+	return $txt;
+}
+
+my $CONFIG_FILE = dirname($0) . '/indexes.json';
+
+die "No configuration file" unless -f $CONFIG_FILE;
+my $cfg = decode_json(read_whole_file($CONFIG_FILE));
+
+my $index = shift;
+my $search_file = shift;
+
+print_usage() unless defined $index and defined $search_file;
+print_die ("invalid search file\n") unless -r $search_file;
+
+# read the whole file
+my $in = read_whole_file($search_file);
+
+$in =~ s/(\n|\r|^)#.*(\n|\r)/$1/g;
+
+print $in;
+
+Elastoman::Communicator::set_server($cfg->{'host'}, $cfg->{'port'});
+my $r = Elastoman::Communicator::search($index, undef, $in, undef);
+
+print Dumper($r);

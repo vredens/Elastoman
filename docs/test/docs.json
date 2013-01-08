@@ -1,0 +1,8 @@
+{"index": {"_type": "person", "_id": "1", "_index": "test"}}
+{"name": "me vredens", "tags": ["elasticsearch", "perl", "distributed systems", "tool developer"]}
+{"index": {"_type": "person", "_id": "2", "_index": "test"}}
+{"name": "elastoman", "tags": ["elasticsearch", "superhero", "you know", "for", "devs and admins"]}
+{"index": {"_type": "person", "_id": "3", "_index": "test"}}
+{"name": "kimchy", "tags": ["keep up", "the good", "work"]}
+{"index": {"_type": "person", "_id": "4", "_index": "test"}}
+{"name": "friends and family", "tags": ["thank you", "for", "the support"]}

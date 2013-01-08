@@ -8,7 +8,7 @@ use Term::ANSIColor;
 use CLI::Display qw/print_ok print_hl print_error print_die/;
 use File::Basename;
 
-my $CONFIG_FILE = dirname($0) . '/indexes.yml';
+my $CONFIG_FILE = dirname($0) . '/indexes.json';
 
 sub run_elastic_request {
 	my $cmd = shift;
