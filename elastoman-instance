@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 
+use lib './lib/';
 use CLI::Display qw/print_ok print_hl print_error print_die/;
 use YAML::Tiny;
 use Data::Dumper;
@@ -20,6 +21,11 @@ sub print_usage {
 	print_hl ("\t$0 start <instance>   "); print_ok ("Start an elasticsearch instance\n");
 	print_hl ("\t$0 stop <instance>    "); print_ok ("Stop an elasticsearch instance\n");
 	exit 1;
+}
+
+sub valid_ip_addr {
+	my $ip = shift;
+	return ($ip =~ /^[1-2]?[0-9]?[1-9](\.[1-2]?[0-9]?[1-9]){3}$/);
 }
 
 my $CONFIG_FILE = dirname($0) . '/instances.yml'; # TODO: replace with the non-.dist file
@@ -159,8 +165,8 @@ sub prepare_instance {
 			print $ofh 'path.data: ', $folders{data}, "\n";
 			print $ofh 'path.logs: ', $folders{logs}, "\n";
 		} elsif (/##### Network And HTTP #####/) {
-			print $ofh 'network.bind_host: ', $instance->{'bind-host'}, "\n" if defined $instance->{'bind-host'};
-			print $ofh 'network.publish_host: : ', $instance->{'publish-host'}, "\n" if defined $instance->{'publish-host'};
+			print $ofh 'network.bind_host: ', $instance->{'bind-host'}, "\n" if defined $instance->{'bind-host'} and valid_ip_addr($instance->{'bind-host'});
+			print $ofh 'network.publish_host: : ', $instance->{'publish-host'}, "\n" if defined $instance->{'publish-host'} and valid_ip_addr($instance->{'publish-host'});
 			print $ofh 'transport.tcp.port: ', $instance->{'tcp-port'}, "\n" if defined $instance->{'tcp-port'};
 			print $ofh 'http.port: ', $instance->{'http-port'}, "\n" if defined $instance->{'http-port'};
 		}
