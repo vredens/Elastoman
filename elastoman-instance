@@ -17,7 +17,7 @@ use Archive::Tar;
 use YAML::Tiny;
 use LWP::Simple;
 
-# set max open files hard limit
+# TODO: check max open files limit
 
 sub print_usage {
 	print_error('Invalid syntax.', "\n\n");
@@ -29,7 +29,7 @@ sub print_usage {
 	exit 1;
 }
 
-my $CONFIG_FILE = dirname($0) . '/instances.yml'; # TODO: replace with the non-.dist file
+my $CONFIG_FILE = dirname($0) . '/instances.yml';
 
 die "No configuration file" unless -f $CONFIG_FILE;
 my $cfg = YAML::Tiny->read($CONFIG_FILE);
@@ -140,7 +140,6 @@ sub prepare_instance {
 	print_ok ('making dir ', $instance->{'location'}, "\n");
 	mkpath ($instance->{'location'}) or die 'could not make path' unless -d $instance->{'location'};
 
-	# abs path or not?
 	my $lf = abs_path($instance->{'location'});
 
 	# create the config folder
@@ -152,19 +151,17 @@ sub prepare_instance {
 		mkdir $folders{$_} or die 'cant make dir' unless defined -d $folders{$_};
 	}
 
-	$instance->{'config-params'}->{'path.conf'} = $folders{config} unless defined $instance->{'config-params'}->{'path.conf'};
+	$instance->{'config-params'}->{'path.conf'} = $folders{config}; # always replace the config folder, ignore any settings in config-params
 	$instance->{'config-params'}->{'path.data'} = $folders{data} unless defined $instance->{'config-params'}->{'path.data'};
 	$instance->{'config-params'}->{'path.logs'} = $folders{logs} unless defined $instance->{'config-params'}->{'path.logs'};
 
 	# copy and update the config
-	#open (my $ifh, '<', $cfg->[0]->{'server'}->{'location'} . '/elasticsearch/config/elasticsearch.yml') or die 'could not open original config file';
 	open (my $ofh, '>', $folders{config} . '/elasticsearch.yml') or die 'could not open destination config file';
 	foreach (keys %{$instance->{'config-params'}}) {
 		print $ofh $_, ': ', $instance->{'config-params'}->{$_}, "\n";
 	}
 	close ($ofh);
 	cp("$cfg->[0]->{'server'}->{'location'}/elasticsearch/config/logging.yml", "$folders{config}/logging.yml")
-	#`cp $cfg->[0]->{'server'}->{'location'}/elasticsearch/config/logging.yml $folders{config}/logging.yml`;
 }
 
 sub prepare_elasticsearch {
@@ -191,7 +188,6 @@ sub prepare_elasticsearch {
 		my $tar = Archive::Tar->new;
 		$tar->read($es_file);
 		$tar->extract();
-		#`tar -xzf `;
 		die "Could not extract $es_file" unless -d $es_folder;
 	}
 
