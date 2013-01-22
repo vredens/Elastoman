@@ -12,7 +12,7 @@ use Data::Dumper;
 
 sub print_usage {
 	print_error ("Invalid syntax!\n");
-	print_hl ("Syntax: $0 <instance> <search file> [<search param> ...]\n");
+	print_hl ("Syntax: $0 <index> <search file> [<search param> ...]\n");
 	exit 1;
 }
 
