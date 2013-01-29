@@ -87,7 +87,7 @@ sub get_pid_from_file {
 }
 
 sub check_elasticsearch {
-	1;
+	...
 }
 
 sub start {
