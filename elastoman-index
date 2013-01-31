@@ -136,19 +136,29 @@ my $cfg = decode_json($json);
 my $module = shift;
 
 if (! defined $module or !@ARGV) {
-	print_error('Correct sintax: ', $0, ' <module> [<task> ...]', "\n");
-	print_hl('Tasks: ', "\n");
-	print_ok("\t", 'update: '); print 'checks the current installed version, increments it and creates the index with the new version. use task [install] for indexes without versioning', "\n";
-	print_ok("\t", 'install: '); print 'creates the index with the version specified in the configuration. if an index with that version already exists it is removed first.', "\n";
-	print_ok("\t", 'fetch: '); print 'fetches the data to index. not all indices require this step but it is safe to run it even for those cases.', "\n";
-	print_ok("\t", 'index: '); print 'populates the index.', "\n";
-	print_ok("\t", 'alias: '); print 'fixes all aliases (removes and adds).', "\n";
-	print_ok("\t", 'replicas: '); print 'sets the number of replicas as per what is configured (this ignores/overrides what is defined in the mappings file).', "\n";
+	print_error('Correct sintax: ', $0, ' <index> [<task> ...]', "\n");
 
-	print_hl('Modules', "\n");
+	print_hl('Indexes', "\n");
+	my @modules;
 	foreach my $m (keys %{$cfg}) {
 		unless (grep /^$m$/, qw/debug host port env mappings-folder/) {
 			print_ok("\t", $m, "\n");
+			push @modules, $m;
+		}
+	}
+
+	print_hl('Global Tasks: ', "\n");
+	print_ok("\t", 'update: '); print 'checks the current installed version, increments it and creates the index with the new version. use task [install] for indexes without versioning', "\n";
+	print_ok("\t", 'install: '); print 'creates the index with the version specified in the configuration. if an index with that version already exists it is removed first.', "\n";
+	print_ok("\t", 'alias: '); print 'fixes all aliases (removes and adds).', "\n";
+	print_ok("\t", 'replicas: '); print 'sets the number of replicas as per what is configured (this ignores/overrides what is defined in the mappings file).', "\n";
+
+	foreach my $m (@modules) {
+		if (defined $cfg->{$m}->{'commands'}) {
+			print_hl ("Index [", $m, "] tasks:\n");
+			foreach (keys %{$cfg->{$m}->{'commands'}}) {
+				print_ok("\t", $_, "\n");
+			}
 		}
 	}
 	exit 1;
@@ -291,7 +301,14 @@ while (@ARGV) {
 		$cfg->{$module}->{'version'} = $iv + 1;
 		($in, undef) = get_index_name_and_template($cfg->{$module}, $cfg->{'env'});
 
-		my $cmd = 'curl -s -XPOST ' . get_es_uri($cfg, $in) . ' --data-binary @' . $cfg->{'mappings-folder'} . $cfg->{$module}->{'mapping'};
+		my $cmd;
+		if (check_index_exists($cfg, $in)) {
+			$cmd = 'curl -s -XDELETE ' . get_es_uri($cfg, $in);
+			print_ok ("running: ", $cmd, "\n");
+			continue_or_abort();
+			run_elastic_request($cmd) unless $cfg->{debug};
+		}
+		$cmd = 'curl -s -XPOST ' . get_es_uri($cfg, $in) . ' --data-binary @' . $cfg->{'mappings-folder'} . $cfg->{$module}->{'mapping'};
 		print_ok ("running: ", $cmd, "\n");
 		continue_or_abort();
 		run_elastic_request($cmd) unless $cfg->{debug};

@@ -1,5 +1,5 @@
-Elastoman version 0.1.0
-=======================
+Elastoman version 0.1
+=====================
 
 Elastoman is a tool for managing ElasticSearch instances. It is aimed at
 administrators and developers alike.
@@ -19,9 +19,16 @@ Use of perlbrew is recommended. To install it just run:
   perlbrew use <your version of perl>
   perlbrew install cpanm
 
+You should add
+
+  source ~/perl5/perlbrew/etc/bashrc
+  
+somewhere in your shell startup scripts (~/.bashrc, for example)
+
 Once you got a perl environment just for your user its time to install
 Elastoman's dependencies. Simply run:
 
+  cpanm LWP
   cpanm YAML::Tiny
   cpanm JSON
 
@@ -42,10 +49,11 @@ Java  - elasticsearch runs over a JVM
 Linux - currently only Linux is supported
 Perl  - at least v5.12
 
-Perl modules required (recomm:
+Perl modules required:
 
   YAML::Tiny
   JSON
+  LWP::Simple
 
 Recommended:
 
